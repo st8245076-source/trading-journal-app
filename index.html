@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Options Trading Journal</title>
+    <title>Trading Journal - Multi-Market</title>
     <style>
         * {
             margin: 0;
@@ -35,6 +35,38 @@
             color: #667eea;
             font-size: 2.5em;
             margin-bottom: 20px;
+        }
+
+        .market-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .market-btn {
+            padding: 15px 30px;
+            background: #f0f0f0;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .market-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .market-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
 
         .tabs {
@@ -260,6 +292,7 @@
         .trade-badges {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         .badge {
@@ -279,14 +312,29 @@
             color: #991b1b;
         }
 
-        .badge.buy {
+        .badge.buy, .badge.long {
             background: #dbeafe;
             color: #1e40af;
         }
 
-        .badge.sell {
+        .badge.sell, .badge.short {
             background: #fef3c7;
             color: #92400e;
+        }
+
+        .badge.options {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .badge.crypto {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge.forex {
+            background: #dbeafe;
+            color: #1e40af;
         }
 
         .trade-details {
@@ -423,45 +471,28 @@
             color: #333;
         }
 
-        .chart-container {
-            margin-top: 20px;
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📊 Options Trading Journal</h1>
+            <h1>📊 Multi-Market Trading Journal</h1>
+            
+            <div class="market-selector">
+                <button class="market-btn active" onclick="switchMarket('options')">
+                    📈 Options
+                </button>
+                <button class="market-btn" onclick="switchMarket('crypto')">
+                    ₿ Crypto
+                </button>
+                <button class="market-btn" onclick="switchMarket('forex')">
+                    💱 Forex
+                </button>
+            </div>
+
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('journal')">Journal</button>
                 <button class="tab" onclick="switchTab('analytics')">Analytics</button>
@@ -475,6 +506,7 @@
                     <h2 id="formTitle">Add New Trade</h2>
                     <form id="tradeForm">
                         <input type="hidden" id="editTradeId">
+                        <input type="hidden" id="marketType" value="options">
                         
                         <div class="form-row">
                             <div class="form-group">
@@ -482,75 +514,120 @@
                                 <input type="date" id="tradeDate" required>
                             </div>
                             <div class="form-group">
-                                <label>Symbol</label>
-                                <input type="text" id="symbol" placeholder="e.g., NIFTY, BANKNIFTY" required>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Option Type</label>
-                                <select id="optionType" required>
-                                    <option value="CALL">Call (CE)</option>
-                                    <option value="PUT">Put (PE)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Strike Price</label>
-                                <input type="number" step="0.01" id="strikePrice" placeholder="19500" required>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Expiry Date</label>
-                                <input type="date" id="expiryDate" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Action</label>
-                                <select id="tradeAction" required>
-                                    <option value="BUY">Buy</option>
-                                    <option value="SELL">Sell</option>
+                                <label id="symbolLabel">Symbol</label>
+                                <select id="symbol" required>
+                                    <!-- Options will be populated based on market -->
                                 </select>
                             </div>
                         </div>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Lots</label>
-                                <input type="number" id="lots" placeholder="1" required>
+                        <!-- Options-specific fields -->
+                        <div id="optionsFields">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Option Type</label>
+                                    <select id="optionType">
+                                        <option value="CALL">Call (CE)</option>
+                                        <option value="PUT">Put (PE)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Strike Price</label>
+                                    <input type="number" step="0.01" id="strikePrice" placeholder="19500">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Lot Size</label>
-                                <input type="number" id="lotSize" placeholder="50" required>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Expiry Date</label>
+                                    <input type="date" id="expiryDate">
+                                </div>
+                                <div class="form-group">
+                                    <label>Action</label>
+                                    <select id="optionAction">
+                                        <option value="BUY">Buy</option>
+                                        <option value="SELL">Sell</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Lots</label>
+                                    <input type="number" id="lots" placeholder="1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Lot Size</label>
+                                    <input type="number" id="lotSize" placeholder="50">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Entry Premium (₹)</label>
+                                    <input type="number" step="0.01" id="entryPremium" placeholder="150.50">
+                                </div>
+                                <div class="form-group">
+                                    <label>Exit Premium (₹)</label>
+                                    <input type="number" step="0.01" id="exitPremium" placeholder="180.75">
+                                </div>
                             </div>
                         </div>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Entry Premium (₹)</label>
-                                <input type="number" step="0.01" id="entryPremium" placeholder="150.50" required>
+                        <!-- Crypto/Forex fields -->
+                        <div id="spotFields" class="hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Position</label>
+                                    <select id="position">
+                                        <option value="LONG">Long (Buy)</option>
+                                        <option value="SHORT">Short (Sell)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label id="quantityLabel">Quantity</label>
+                                    <input type="number" step="0.00000001" id="quantity" placeholder="0.5">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Exit Premium (₹)</label>
-                                <input type="number" step="0.01" id="exitPremium" placeholder="180.75">
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label id="entryPriceLabel">Entry Price</label>
+                                    <input type="number" step="0.01" id="entryPrice" placeholder="50000">
+                                </div>
+                                <div class="form-group">
+                                    <label id="exitPriceLabel">Exit Price</label>
+                                    <input type="number" step="0.01" id="exitPrice" placeholder="52000">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Leverage</label>
+                                    <input type="number" step="1" id="leverage" placeholder="1" value="1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Fees ($)</label>
+                                    <input type="number" step="0.01" id="fees" placeholder="10.50">
+                                </div>
                             </div>
                         </div>
 
+                        <!-- Common fields -->
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Stop Loss (₹)</label>
+                                <label id="stopLossLabel">Stop Loss</label>
                                 <input type="number" step="0.01" id="stopLoss" placeholder="140.00">
                             </div>
                             <div class="form-group">
-                                <label>Target (₹)</label>
+                                <label id="targetLabel">Target</label>
                                 <input type="number" step="0.01" id="target" placeholder="200.00">
                             </div>
                         </div>
 
                         <div class="form-group full-width">
                             <label>Strategy</label>
-                            <input type="text" id="strategy" placeholder="e.g., Straddle, Iron Condor, Directional">
+                            <input type="text" id="strategy" placeholder="e.g., Breakout, Trend Following">
                         </div>
 
                         <div class="form-group full-width">
@@ -571,12 +648,6 @@
                         <div class="filters">
                             <select id="filterType">
                                 <option value="all">All Trades</option>
-                                <option value="CALL">Calls Only</option>
-                                <option value="PUT">Puts Only</option>
-                                <option value="BUY">Buy Only</option>
-                                <option value="SELL">Sell Only</option>
-                                <option value="profit">Profitable</option>
-                                <option value="loss">Loss</option>
                             </select>
                         </div>
                     </div>
@@ -595,48 +666,130 @@
 
     <script>
         let trades = [];
-        let editingTradeId = null;
+        let currentMarket = 'options';
+
+        const marketSymbols = {
+            options: ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'],
+            crypto: ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'MATIC/USDT'],
+            forex: ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'NZD/USD', 'US30', 'GER30', 'NDX100', 'XAU/USD']
+        };
 
         function loadTrades() {
-            const stored = localStorage.getItem('optionsJournal');
+            const stored = localStorage.getItem('multiMarketJournal');
             if (stored) {
                 trades = JSON.parse(stored);
             }
         }
 
         function saveTrades() {
-            localStorage.setItem('optionsJournal', JSON.stringify(trades));
+            localStorage.setItem('multiMarketJournal', JSON.stringify(trades));
+        }
+
+        function switchMarket(market) {
+            currentMarket = market;
+            
+            document.querySelectorAll('.market-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            populateSymbols();
+            updateFormFields();
+            updateStats();
+            renderTrades();
+        }
+
+        function populateSymbols() {
+            const symbolSelect = document.getElementById('symbol');
+            symbolSelect.innerHTML = '';
+            
+            marketSymbols[currentMarket].forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                symbolSelect.appendChild(option);
+            });
+        }
+
+        function updateFormFields() {
+            const optionsFields = document.getElementById('optionsFields');
+            const spotFields = document.getElementById('spotFields');
+            const filterType = document.getElementById('filterType');
+
+            if (currentMarket === 'options') {
+                optionsFields.classList.remove('hidden');
+                spotFields.classList.add('hidden');
+                document.getElementById('symbolLabel').textContent = 'Index';
+                
+                filterType.innerHTML = `
+                    <option value="all">All Trades</option>
+                    <option value="CALL">Calls Only</option>
+                    <option value="PUT">Puts Only</option>
+                    <option value="BUY">Buy Only</option>
+                    <option value="SELL">Sell Only</option>
+                    <option value="profit">Profitable</option>
+                    <option value="loss">Loss</option>
+                `;
+            } else {
+                optionsFields.classList.add('hidden');
+                spotFields.classList.remove('hidden');
+                document.getElementById('symbolLabel').textContent = 'Pair';
+                
+                if (currentMarket === 'crypto') {
+                    document.getElementById('quantityLabel').textContent = 'Quantity (Coins)';
+                    document.getElementById('entryPriceLabel').textContent = 'Entry Price ($)';
+                    document.getElementById('exitPriceLabel').textContent = 'Exit Price ($)';
+                    document.getElementById('stopLossLabel').textContent = 'Stop Loss ($)';
+                    document.getElementById('targetLabel').textContent = 'Target ($)';
+                } else {
+                    document.getElementById('quantityLabel').textContent = 'Lot Size';
+                    document.getElementById('entryPriceLabel').textContent = 'Entry Price';
+                    document.getElementById('exitPriceLabel').textContent = 'Exit Price';
+                    document.getElementById('stopLossLabel').textContent = 'Stop Loss';
+                    document.getElementById('targetLabel').textContent = 'Target';
+                }
+
+                filterType.innerHTML = `
+                    <option value="all">All Trades</option>
+                    <option value="LONG">Long Only</option>
+                    <option value="SHORT">Short Only</option>
+                    <option value="profit">Profitable</option>
+                    <option value="loss">Loss</option>
+                `;
+            }
         }
 
         function calculatePnL(trade) {
-            if (!trade.exitPremium) return 0;
-            
-            const quantity = trade.lots * trade.lotSize;
-            const diff = trade.tradeAction === 'BUY' 
-                ? (trade.exitPremium - trade.entryPremium) * quantity
-                : (trade.entryPremium - trade.exitPremium) * quantity;
-            
-            return diff;
+            if (trade.marketType === 'options') {
+                if (!trade.exitPremium) return 0;
+                const quantity = trade.lots * trade.lotSize;
+                const diff = trade.optionAction === 'BUY' 
+                    ? (trade.exitPremium - trade.entryPremium) * quantity
+                    : (trade.entryPremium - trade.exitPremium) * quantity;
+                return diff;
+            } else {
+                if (!trade.exitPrice) return 0;
+                const diff = trade.position === 'LONG'
+                    ? (trade.exitPrice - trade.entryPrice) * trade.quantity * (trade.leverage || 1)
+                    : (trade.entryPrice - trade.exitPrice) * trade.quantity * (trade.leverage || 1);
+                return diff - (trade.fees || 0);
+            }
         }
 
         function updateStats() {
-            const totalTrades = trades.length;
-            const completedTrades = trades.filter(t => t.exitPremium);
+            const marketTrades = trades.filter(t => t.marketType === currentMarket);
+            const totalTrades = marketTrades.length;
+            const completedTrades = marketTrades.filter(t => 
+                currentMarket === 'options' ? t.exitPremium : t.exitPrice
+            );
             
             let totalPnL = 0;
             let winningTrades = 0;
             let losingTrades = 0;
-            let totalPremiumPaid = 0;
             
             completedTrades.forEach(trade => {
                 const pnl = calculatePnL(trade);
                 totalPnL += pnl;
                 if (pnl > 0) winningTrades++;
                 else if (pnl < 0) losingTrades++;
-            });
-
-            trades.forEach(trade => {
-                totalPremiumPaid += trade.entryPremium * trade.lots * trade.lotSize;
             });
             
             const winRate = completedTrades.length > 0 
@@ -647,9 +800,7 @@
                 ? (completedTrades.filter(t => calculatePnL(t) > 0).reduce((sum, t) => sum + calculatePnL(t), 0) / winningTrades).toFixed(2)
                 : '0.00';
 
-            const avgLoss = losingTrades > 0 
-                ? (completedTrades.filter(t => calculatePnL(t) < 0).reduce((sum, t) => sum + calculatePnL(t), 0) / losingTrades).toFixed(2)
-                : '0.00';
+            const currency = currentMarket === 'options' ? '₹' : '$';
             
             const statsHTML = `
                 <div class="stat-card">
@@ -658,7 +809,7 @@
                 </div>
                 <div class="stat-card ${totalPnL >= 0 ? 'profit' : 'loss'}">
                     <div class="stat-label">Total P&L</div>
-                    <div class="stat-value">₹${totalPnL.toFixed(2)}</div>
+                    <div class="stat-value">${currency}${totalPnL.toFixed(2)}</div>
                 </div>
                 <div class="stat-card profit">
                     <div class="stat-label">Winners</div>
@@ -674,7 +825,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Avg Win</div>
-                    <div class="stat-value">₹${avgWin}</div>
+                    <div class="stat-value">${currency}${avgWin}</div>
                 </div>
             `;
             
@@ -682,16 +833,26 @@
         }
 
         function renderTrades(filter = 'all') {
-            let filteredTrades = [...trades];
+            let filteredTrades = trades.filter(t => t.marketType === currentMarket);
             
-            if (filter === 'CALL' || filter === 'PUT') {
-                filteredTrades = trades.filter(t => t.optionType === filter);
-            } else if (filter === 'BUY' || filter === 'SELL') {
-                filteredTrades = trades.filter(t => t.tradeAction === filter);
-            } else if (filter === 'profit') {
-                filteredTrades = trades.filter(t => t.exitPremium && calculatePnL(t) > 0);
-            } else if (filter === 'loss') {
-                filteredTrades = trades.filter(t => t.exitPremium && calculatePnL(t) < 0);
+            if (currentMarket === 'options') {
+                if (filter === 'CALL' || filter === 'PUT') {
+                    filteredTrades = filteredTrades.filter(t => t.optionType === filter);
+                } else if (filter === 'BUY' || filter === 'SELL') {
+                    filteredTrades = filteredTrades.filter(t => t.optionAction === filter);
+                } else if (filter === 'profit') {
+                    filteredTrades = filteredTrades.filter(t => t.exitPremium && calculatePnL(t) > 0);
+                } else if (filter === 'loss') {
+                    filteredTrades = filteredTrades.filter(t => t.exitPremium && calculatePnL(t) < 0);
+                }
+            } else {
+                if (filter === 'LONG' || filter === 'SHORT') {
+                    filteredTrades = filteredTrades.filter(t => t.position === filter);
+                } else if (filter === 'profit') {
+                    filteredTrades = filteredTrades.filter(t => t.exitPrice && calculatePnL(t) > 0);
+                } else if (filter === 'loss') {
+                    filteredTrades = filteredTrades.filter(t => t.exitPrice && calculatePnL(t) < 0);
+                }
             }
             
             const tradesList = document.getElementById('tradesList');
@@ -700,7 +861,7 @@
                 tradesList.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📈</div>
-                        <div class="empty-state-text">No trades yet. Start by adding your first options trade!</div>
+                        <div class="empty-state-text">No ${currentMarket} trades yet. Start by adding your first trade!</div>
                     </div>
                 `;
                 return;
@@ -711,145 +872,168 @@
             tradesList.innerHTML = filteredTrades.map(trade => {
                 const pnl = calculatePnL(trade);
                 const pnlClass = pnl > 0 ? 'profit' : pnl < 0 ? 'loss' : '';
-                const quantity = trade.lots * trade.lotSize;
+                const currency = trade.marketType === 'options' ? '₹' : '$';
                 
-                return `
-                    <div class="trade-card ${pnlClass}">
-                        <div class="trade-header">
-                            <div class="trade-symbol">${trade.symbol} ${trade.strikePrice} ${trade.optionType}</div>
-                            <div class="trade-badges">
-                                <span class="badge ${trade.optionType.toLowerCase()}">${trade.optionType}</span>
-                                <span class="badge ${trade.tradeAction.toLowerCase()}">${trade.tradeAction}</span>
+                if (trade.marketType === 'options') {
+                    const quantity = trade.lots * trade.lotSize;
+                    return `
+                        <div class="trade-card ${pnlClass}">
+                            <div class="trade-header">
+                                <div class="trade-symbol">${trade.symbol} ${trade.strikePrice} ${trade.optionType}</div>
+                                <div class="trade-badges">
+                                    <span class="badge options">OPTIONS</span>
+                                    <span class="badge ${trade.optionType.toLowerCase()}">${trade.optionType}</span>
+                                    <span class="badge ${trade.optionAction.toLowerCase()}">${trade.optionAction}</span>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <div class="trade-details">
-                            <div class="detail-item">
-                                <span class="detail-label">Date</span>
-                                <span class="detail-value">${new Date(trade.date).toLocaleDateString()}</span>
+                            
+                            <div class="trade-details">
+                                <div class="detail-item">
+                                    <span class="detail-label">Date</span>
+                                    <span class="detail-value">${new Date(trade.date).toLocaleDateString()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Expiry</span>
+                                    <span class="detail-value">${new Date(trade.expiryDate).toLocaleDateString()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Lots × Size</span>
+                                    <span class="detail-value">${trade.lots} × ${trade.lotSize}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Entry Premium</span>
+                                    <span class="detail-value">${currency}${trade.entryPremium.toFixed(2)}</span>
+                                </div>
+                                ${trade.exitPremium ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label">Exit Premium</span>
+                                        <span class="detail-value">${currency}${trade.exitPremium.toFixed(2)}</span>
+                                    </div>
+                                ` : ''}
+                                ${trade.strategy ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label">Strategy</span>
+                                        <span class="detail-value">${trade.strategy}</span>
+                                    </div>
+                                ` : ''}
                             </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Expiry</span>
-                                <span class="detail-value">${new Date(trade.expiryDate).toLocaleDateString()}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Lots × Size</span>
-                                <span class="detail-value">${trade.lots} × ${trade.lotSize}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Quantity</span>
-                                <span class="detail-value">${quantity}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Entry Premium</span>
-                                <span class="detail-value">₹${trade.entryPremium.toFixed(2)}</span>
-                            </div>
+                            
                             ${trade.exitPremium ? `
-                                <div class="detail-item">
-                                    <span class="detail-label">Exit Premium</span>
-                                    <span class="detail-value">₹${trade.exitPremium.toFixed(2)}</span>
+                                <div class="trade-pnl ${pnlClass}">
+                                    P&L: ${currency}${pnl.toFixed(2)} (${((pnl / (trade.entryPremium * quantity)) * 100).toFixed(2)}%)
                                 </div>
                             ` : ''}
-                            ${trade.stopLoss ? `
-                                <div class="detail-item">
-                                    <span class="detail-label">Stop Loss</span>
-                                    <span class="detail-value">₹${trade.stopLoss.toFixed(2)}</span>
+                            
+                            ${trade.notes ? `
+                                <div class="trade-notes">
+                                    <strong>Notes:</strong> ${trade.notes}
                                 </div>
                             ` : ''}
-                            ${trade.target ? `
-                                <div class="detail-item">
-                                    <span class="detail-label">Target</span>
-                                    <span class="detail-value">₹${trade.target.toFixed(2)}</span>
-                                </div>
-                            ` : ''}
-                            ${trade.strategy ? `
-                                <div class="detail-item">
-                                    <span class="detail-label">Strategy</span>
-                                    <span class="detail-value">${trade.strategy}</span>
-                                </div>
-                            ` : ''}
-                        </div>
-                        
-                        ${trade.exitPremium ? `
-                            <div class="trade-pnl ${pnlClass}">
-                                P&L: ₹${pnl.toFixed(2)} (${((pnl / (trade.entryPremium * quantity)) * 100).toFixed(2)}%)
+                            
+                            <div>
+                                <button class="btn-edit" onclick="editTrade('${trade.id}')">Edit</button>
+                                <button class="btn-delete" onclick="deleteTrade('${trade.id}')">Delete</button>
                             </div>
-                        ` : ''}
-                        
-                        ${trade.notes ? `
-                            <div class="trade-notes">
-                                <strong>Notes:</strong> ${trade.notes}
-                            </div>
-                        ` : ''}
-                        
-                        <div>
-                            <button class="btn-edit" onclick="editTrade('${trade.id}')">Edit</button>
-                            <button class="btn-delete" onclick="deleteTrade('${trade.id}')">Delete</button>
                         </div>
-                    </div>
-                `;
+                    `;
+                } else {
+                    return `
+                        <div class="trade-card ${pnlClass}">
+                            <div class="trade-header">
+                                <div class="trade-symbol">${trade.symbol}</div>
+                                <div class="trade-badges">
+                                    <span class="badge ${trade.marketType}">${trade.marketType.toUpperCase()}</span>
+                                    <span class="badge ${trade.position.toLowerCase()}">${trade.position}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="trade-details">
+                                <div class="detail-item">
+                                    <span class="detail-label">Date</span>
+                                    <span class="detail-value">${new Date(trade.date).toLocaleDateString()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Quantity</span>
+                                    <span class="detail-value">${trade.quantity}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Entry Price</span>
+                                    <span class="detail-value">${currency}${trade.entryPrice.toFixed(2)}</span>
+                                </div>
+                                ${trade.exitPrice ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label">Exit Price</span>
+                                        <span class="detail-value">${currency}${trade.exitPrice.toFixed(2)}</span>
+                                    </div>
+                                ` : ''}
+                                ${trade.leverage && trade.leverage > 1 ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label">Leverage</span>
+                                        <span class="detail-value">${trade.leverage}x</span>
+                                    </div>
+                                ` : ''}
+                                ${trade.strategy ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label">Strategy</span>
+                                        <span class="detail-value">${trade.strategy}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            
+                            ${trade.exitPrice ? `
+                                <div class="trade-pnl ${pnlClass}">
+                                    P&L: ${currency}${pnl.toFixed(2)} (${((pnl / (trade.entryPrice * trade.quantity)) * 100).toFixed(2)}%)
+                                </div>
+                            ` : ''}
+                            
+                            ${trade.notes ? `
+                                <div class="trade-notes">
+                                    <strong>Notes:</strong> ${trade.notes}
+                                </div>
+                            ` : ''}
+                            
+                            <div>
+                                <button class="btn-edit" onclick="editTrade('${trade.id}')">Edit</button>
+                                <button class="btn-delete" onclick="deleteTrade('${trade.id}')">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }
             }).join('');
         }
 
         function renderAnalytics() {
-            const completedTrades = trades.filter(t => t.exitPremium);
+            const marketTrades = trades.filter(t => t.marketType === currentMarket);
+            const completedTrades = marketTrades.filter(t => 
+                currentMarket === 'options' ? t.exitPremium : t.exitPrice
+            );
             
             if (completedTrades.length === 0) {
                 document.getElementById('analyticsContent').innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📊</div>
-                        <div class="empty-state-text">Complete some trades to see analytics!</div>
+                        <div class="empty-state-text">Complete some ${currentMarket} trades to see analytics!</div>
                     </div>
                 `;
                 return;
             }
 
-            // Calculate analytics
-            const callTrades = completedTrades.filter(t => t.optionType === 'CALL');
-            const putTrades = completedTrades.filter(t => t.optionType === 'PUT');
-            const buyTrades = completedTrades.filter(t => t.tradeAction === 'BUY');
-            const sellTrades = completedTrades.filter(t => t.tradeAction === 'SELL');
+            const currency = currentMarket === 'options' ? '₹' : '$';
+            let analyticsHTML = '<div class="analytics-grid">';
 
-            const callPnL = callTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
-            const putPnL = putTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
-            const buyPnL = buyTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
-            const sellPnL = sellTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
+            if (currentMarket === 'options') {
+                const callTrades = completedTrades.filter(t => t.optionType === 'CALL');
+                const putTrades = completedTrades.filter(t => t.optionType === 'PUT');
+                const callPnL = callTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
+                const putPnL = putTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
+                const callWinRate = callTrades.length > 0 
+                    ? ((callTrades.filter(t => calculatePnL(t) > 0).length / callTrades.length) * 100).toFixed(1)
+                    : '0.0';
+                const putWinRate = putTrades.length > 0 
+                    ? ((putTrades.filter(t => calculatePnL(t) > 0).length / putTrades.length) * 100).toFixed(1)
+                    : '0.0';
 
-            const callWinRate = callTrades.length > 0 
-                ? ((callTrades.filter(t => calculatePnL(t) > 0).length / callTrades.length) * 100).toFixed(1)
-                : '0.0';
-            const putWinRate = putTrades.length > 0 
-                ? ((putTrades.filter(t => calculatePnL(t) > 0).length / putTrades.length) * 100).toFixed(1)
-                : '0.0';
-
-            // Strategy breakdown
-            const strategies = {};
-            completedTrades.forEach(trade => {
-                if (trade.strategy) {
-                    if (!strategies[trade.strategy]) {
-                        strategies[trade.strategy] = { count: 0, pnl: 0, wins: 0 };
-                    }
-                    strategies[trade.strategy].count++;
-                    const pnl = calculatePnL(trade);
-                    strategies[trade.strategy].pnl += pnl;
-                    if (pnl > 0) strategies[trade.strategy].wins++;
-                }
-            });
-
-            let strategyHTML = '';
-            Object.keys(strategies).forEach(strategy => {
-                const data = strategies[strategy];
-                const winRate = ((data.wins / data.count) * 100).toFixed(1);
-                strategyHTML += `
-                    <div class="analytics-item">
-                        <span class="analytics-label">${strategy}</span>
-                        <span class="analytics-value">₹${data.pnl.toFixed(2)} (${winRate}% WR)</span>
-                    </div>
-                `;
-            });
-
-            const analyticsHTML = `
-                <div class="analytics-grid">
+                analyticsHTML += `
                     <div class="analytics-card">
                         <h3>Option Type Performance</h3>
                         <div class="analytics-item">
@@ -858,7 +1042,7 @@
                         </div>
                         <div class="analytics-item">
                             <span class="analytics-label">Call P&L</span>
-                            <span class="analytics-value">₹${callPnL.toFixed(2)}</span>
+                            <span class="analytics-value">${currency}${callPnL.toFixed(2)}</span>
                         </div>
                         <div class="analytics-item">
                             <span class="analytics-label">Call Win Rate</span>
@@ -870,43 +1054,75 @@
                         </div>
                         <div class="analytics-item">
                             <span class="analytics-label">Put P&L</span>
-                            <span class="analytics-value">₹${putPnL.toFixed(2)}</span>
+                            <span class="analytics-value">${currency}${putPnL.toFixed(2)}</span>
                         </div>
                         <div class="analytics-item">
                             <span class="analytics-label">Put Win Rate</span>
                             <span class="analytics-value">${putWinRate}%</span>
                         </div>
                     </div>
+                `;
+            } else {
+                const longTrades = completedTrades.filter(t => t.position === 'LONG');
+                const shortTrades = completedTrades.filter(t => t.position === 'SHORT');
+                const longPnL = longTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
+                const shortPnL = shortTrades.reduce((sum, t) => sum + calculatePnL(t), 0);
 
+                analyticsHTML += `
                     <div class="analytics-card">
-                        <h3>Action Performance</h3>
+                        <h3>Position Performance</h3>
                         <div class="analytics-item">
-                            <span class="analytics-label">Buy Trades</span>
-                            <span class="analytics-value">${buyTrades.length} trades</span>
+                            <span class="analytics-label">Long Trades</span>
+                            <span class="analytics-value">${longTrades.length} trades</span>
                         </div>
                         <div class="analytics-item">
-                            <span class="analytics-label">Buy P&L</span>
-                            <span class="analytics-value">₹${buyPnL.toFixed(2)}</span>
+                            <span class="analytics-label">Long P&L</span>
+                            <span class="analytics-value">${currency}${longPnL.toFixed(2)}</span>
                         </div>
                         <div class="analytics-item">
-                            <span class="analytics-label">Sell Trades</span>
-                            <span class="analytics-value">${sellTrades.length} trades</span>
+                            <span class="analytics-label">Short Trades</span>
+                            <span class="analytics-value">${shortTrades.length} trades</span>
                         </div>
                         <div class="analytics-item">
-                            <span class="analytics-label">Sell P&L</span>
-                            <span class="analytics-value">₹${sellPnL.toFixed(2)}</span>
+                            <span class="analytics-label">Short P&L</span>
+                            <span class="analytics-value">${currency}${shortPnL.toFixed(2)}</span>
                         </div>
                     </div>
+                `;
+            }
 
-                    ${Object.keys(strategies).length > 0 ? `
-                        <div class="analytics-card">
-                            <h3>Strategy Performance</h3>
-                            ${strategyHTML}
-                        </div>
-                    ` : ''}
+            // Symbol breakdown
+            const symbols = {};
+            completedTrades.forEach(trade => {
+                if (!symbols[trade.symbol]) {
+                    symbols[trade.symbol] = { count: 0, pnl: 0, wins: 0 };
+                }
+                symbols[trade.symbol].count++;
+                const pnl = calculatePnL(trade);
+                symbols[trade.symbol].pnl += pnl;
+                if (pnl > 0) symbols[trade.symbol].wins++;
+            });
+
+            let symbolHTML = '';
+            Object.keys(symbols).forEach(symbol => {
+                const data = symbols[symbol];
+                const winRate = ((data.wins / data.count) * 100).toFixed(1);
+                symbolHTML += `
+                    <div class="analytics-item">
+                        <span class="analytics-label">${symbol}</span>
+                        <span class="analytics-value">${currency}${data.pnl.toFixed(2)} (${winRate}% WR)</span>
+                    </div>
+                `;
+            });
+
+            analyticsHTML += `
+                <div class="analytics-card">
+                    <h3>Symbol Performance</h3>
+                    ${symbolHTML}
                 </div>
             `;
 
+            analyticsHTML += '</div>';
             document.getElementById('analyticsContent').innerHTML = analyticsHTML;
         }
 
@@ -914,20 +1130,11 @@
             e.preventDefault();
             
             const tradeId = document.getElementById('editTradeId').value;
-            const trade = {
+            const baseData = {
                 id: tradeId || Date.now().toString(),
                 date: document.getElementById('tradeDate').value,
-                symbol: document.getElementById('symbol').value.toUpperCase(),
-                optionType: document.getElementById('optionType').value,
-                strikePrice: parseFloat(document.getElementById('strikePrice').value),
-                expiryDate: document.getElementById('expiryDate').value,
-                tradeAction: document.getElementById('tradeAction').value,
-                lots: parseInt(document.getElementById('lots').value),
-                lotSize: parseInt(document.getElementById('lotSize').value),
-                entryPremium: parseFloat(document.getElementById('entryPremium').value),
-                exitPremium: document.getElementById('exitPremium').value 
-                    ? parseFloat(document.getElementById('exitPremium').value) 
-                    : undefined,
+                symbol: document.getElementById('symbol').value,
+                marketType: currentMarket,
                 stopLoss: document.getElementById('stopLoss').value 
                     ? parseFloat(document.getElementById('stopLoss').value) 
                     : undefined,
@@ -937,15 +1144,46 @@
                 strategy: document.getElementById('strategy').value || undefined,
                 notes: document.getElementById('notes').value || undefined
             };
+
+            let trade;
+            if (currentMarket === 'options') {
+                trade = {
+                    ...baseData,
+                    optionType: document.getElementById('optionType').value,
+                    strikePrice: parseFloat(document.getElementById('strikePrice').value),
+                    expiryDate: document.getElementById('expiryDate').value,
+                    optionAction: document.getElementById('optionAction').value,
+                    lots: parseInt(document.getElementById('lots').value),
+                    lotSize: parseInt(document.getElementById('lotSize').value),
+                    entryPremium: parseFloat(document.getElementById('entryPremium').value),
+                    exitPremium: document.getElementById('exitPremium').value 
+                        ? parseFloat(document.getElementById('exitPremium').value) 
+                        : undefined
+                };
+            } else {
+                trade = {
+                    ...baseData,
+                    position: document.getElementById('position').value,
+                    quantity: parseFloat(document.getElementById('quantity').value),
+                    entryPrice: parseFloat(document.getElementById('entryPrice').value),
+                    exitPrice: document.getElementById('exitPrice').value 
+                        ? parseFloat(document.getElementById('exitPrice').value) 
+                        : undefined,
+                    leverage: document.getElementById('leverage').value 
+                        ? parseInt(document.getElementById('leverage').value) 
+                        : 1,
+                    fees: document.getElementById('fees').value 
+                        ? parseFloat(document.getElementById('fees').value) 
+                        : 0
+                };
+            }
             
             if (tradeId) {
-                // Update existing trade
                 const index = trades.findIndex(t => t.id === tradeId);
                 if (index !== -1) {
                     trades[index] = trade;
                 }
             } else {
-                // Add new trade
                 trades.push(trade);
             }
             
@@ -965,21 +1203,43 @@
             const trade = trades.find(t => t.id === id);
             if (!trade) return;
 
+            if (trade.marketType !== currentMarket) {
+                switchMarket(trade.marketType);
+                document.querySelectorAll('.market-btn').forEach((btn, idx) => {
+                    btn.classList.remove('active');
+                    if ((idx === 0 && trade.marketType === 'options') ||
+                        (idx === 1 && trade.marketType === 'crypto') ||
+                        (idx === 2 && trade.marketType === 'forex')) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+
             document.getElementById('editTradeId').value = trade.id;
             document.getElementById('tradeDate').value = trade.date;
             document.getElementById('symbol').value = trade.symbol;
-            document.getElementById('optionType').value = trade.optionType;
-            document.getElementById('strikePrice').value = trade.strikePrice;
-            document.getElementById('expiryDate').value = trade.expiryDate;
-            document.getElementById('tradeAction').value = trade.tradeAction;
-            document.getElementById('lots').value = trade.lots;
-            document.getElementById('lotSize').value = trade.lotSize;
-            document.getElementById('entryPremium').value = trade.entryPremium;
-            document.getElementById('exitPremium').value = trade.exitPremium || '';
             document.getElementById('stopLoss').value = trade.stopLoss || '';
             document.getElementById('target').value = trade.target || '';
             document.getElementById('strategy').value = trade.strategy || '';
             document.getElementById('notes').value = trade.notes || '';
+
+            if (trade.marketType === 'options') {
+                document.getElementById('optionType').value = trade.optionType;
+                document.getElementById('strikePrice').value = trade.strikePrice;
+                document.getElementById('expiryDate').value = trade.expiryDate;
+                document.getElementById('optionAction').value = trade.optionAction;
+                document.getElementById('lots').value = trade.lots;
+                document.getElementById('lotSize').value = trade.lotSize;
+                document.getElementById('entryPremium').value = trade.entryPremium;
+                document.getElementById('exitPremium').value = trade.exitPremium || '';
+            } else {
+                document.getElementById('position').value = trade.position;
+                document.getElementById('quantity').value = trade.quantity;
+                document.getElementById('entryPrice').value = trade.entryPrice;
+                document.getElementById('exitPrice').value = trade.exitPrice || '';
+                document.getElementById('leverage').value = trade.leverage || 1;
+                document.getElementById('fees').value = trade.fees || 0;
+            }
 
             document.getElementById('formTitle').textContent = 'Edit Trade';
             document.getElementById('submitBtn').textContent = 'Update Trade';
@@ -1023,6 +1283,8 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             loadTrades();
+            populateSymbols();
+            updateFormFields();
             updateStats();
             renderTrades();
             document.getElementById('tradeDate').valueAsDate = new Date();
